@@ -99,6 +99,13 @@ func init() {
 	//init constants
 	utils.InitConstants()
 
+    //log
+	logFile := "/opt/logs/{{.Appname}}/babel_api.log"
+	logs.SetLogger(logs.AdapterMultiFile, fmt.Sprintf("{\"filename\":\"%s\", \"lever\": 7, \"separate\":[\"critical\", \"error\", \"warning\", \"info\"]}", logFile))
+	logs.EnableFuncCallDepth(true)
+	logs.SetLogFuncCallDepth(4)
+	logs.Async()
+
 }
 
 func main() {
@@ -544,6 +551,10 @@ func (self *BaseController) resFailedErrorJson()  {
 
 func (self *BaseController)resServerErrorJson()  {
 	self.resJson(resultcode.ResultCodeServerError, nil)
+}
+
+func (self *BaseController) resErrorResultJson(code resultcode.ResultCode) {
+	self.resJson(code, nil)
 }
 
 func (self *BaseController) resJson(resultCode resultcode.ResultCode, data interface{}) {
