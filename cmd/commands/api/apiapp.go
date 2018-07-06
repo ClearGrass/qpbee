@@ -100,7 +100,7 @@ func init() {
 	utils.InitConstants()
 
     //log
-	logFile := "/opt/logs/{{.Appname}}/babel_api.log"
+	logFile := "/opt/logs/{{.Appname}}/server.log"
 	logs.SetLogger(logs.AdapterMultiFile, fmt.Sprintf("{\"filename\":\"%s\", \"lever\": 7, \"separate\":[\"critical\", \"error\", \"warning\", \"info\"]}", logFile))
 	logs.EnableFuncCallDepth(true)
 	logs.SetLogFuncCallDepth(4)
