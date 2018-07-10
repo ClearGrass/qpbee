@@ -533,24 +533,20 @@ type BaseController struct {
 	beego.Controller
 }
 
-func (self *BaseController) resSucessJson(data interface{}) {
-	self.resJson(resultcode.ResultCodeSuccess, data)
+func (self *BaseController) resSuccessJson(data interface{}) {
+	self.resJson(resultcode.ApiSuccess, data)
 }
 
 func (self *BaseController) resParamErrorJson() {
-	self.resJson(resultcode.ResultCodeParamError, nil)
+	self.resJson(resultcode.ApiParamError, nil)
 }
 
 func (self *BaseController) resIllegalRequestJson() {
-	self.resJson(resultcode.ResultCodeIllegal, nil)
+	self.resJson(resultcode.ApiIllegalRequest, nil)
 }
 
-func (self *BaseController) resFailedErrorJson()  {
-	self.resJson(resultcode.ResultCodeFailed, nil)
-}
-
-func (self *BaseController)resServerErrorJson()  {
-	self.resJson(resultcode.ResultCodeServerError, nil)
+func (self *BaseController) resServerErrorJson() {
+	self.resJson(resultcode.ApiServerError, nil)
 }
 
 func (self *BaseController) resErrorResultJson(code resultcode.ResultCode) {
@@ -561,6 +557,176 @@ func (self *BaseController) resJson(resultCode resultcode.ResultCode, data inter
 	result := util.GenrateJsonResult(resultCode, data)
 	self.Data["json"] = result
 	self.ServeJSON()
+}
+
+`
+var apiControllerCheck = `package controllers
+
+type CheckController struct {
+	BaseController
+}
+
+func (cc *CheckController)Get() {
+	result := make(map[string]string)
+	result["status"] = "ok"
+	cc.resSuccessJson(result)
+}
+`
+
+var apimlogs = `package mlogs
+
+import (
+	"github.com/astaxie/beego/logs"
+	"encoding/json"
+	"strings"
+	"fmt"
+)
+
+func formatLog(f interface{}, v ...interface{}) string {
+	var msg string
+	switch f.(type) {
+	case string:
+		msg = f.(string)
+		if len(v) == 0 {
+			return msg
+		}
+		if strings.Contains(msg, "%") && !strings.Contains(msg, "%%") {
+			//format string
+		} else {
+			//do not contain format char
+			msg += strings.Repeat(" %v", len(v))
+		}
+	default:
+		msg = fmt.Sprint(f)
+		if len(v) == 0 {
+			return msg
+		}
+		msg += strings.Repeat(" %v", len(v))
+	}
+	return fmt.Sprintf(msg, v...)
+}
+
+func parsh(msg string) map[string]string {
+	result := make(map[string]string)
+	index := strings.Index(msg, " ")
+	if index == -1 {
+		logs.Notice(msg)
+		return nil
+	}
+	result["method"] = msg[0:index]
+
+	if index+1 > len(msg) {
+		logs.Notice(msg)
+		return nil
+	}
+	msg = msg[index+1:]
+	index = strings.Index(msg, ",[")
+	if index == -1 {
+		result["desc"] = msg
+		return result
+	}
+	result["desc"] = msg[0:index]
+
+	if index+2 > len(msg) {
+		logs.Notice(msg)
+		return nil
+	}
+	msg = msg[index+1:]
+	for {
+		if strings.Index(msg, "[") != 0 {
+			logs.Notice(msg)
+			return nil
+		}
+		msg = msg[1:]
+		index = strings.Index(msg, "|")
+		if index == -1 {
+			logs.Notice(msg)
+			return nil
+		}
+		tag := msg[0:index]
+		if index+1 > len(msg) {
+			logs.Notice(msg)
+			return nil
+		}
+		msg = msg[index+1:]
+		index = strings.Index(msg, "]")
+		if index == -1 {
+			logs.Notice(msg)
+			return nil
+		}
+		val := msg[0:index]
+		result[tag] = val
+		if index+1 >= len(msg) {
+			break
+		}
+		msg = msg[index+1:]
+	}
+
+	return result
+}
+
+func Debug(f interface{}, v ...interface{}) {
+	msg := formatLog(f, v...)
+	str, err := json.Marshal(parsh(msg))
+	if err == nil {
+		logs.Debug(string(str))
+	}
+}
+
+func Info(f interface{}, v ...interface{}) {
+	msg := formatLog(f, v...)
+	str, err := json.Marshal(parsh(msg))
+	if err == nil {
+		logs.Info(string(str))
+	}
+}
+
+func Warning(f interface{}, v ...interface{}) {
+	msg := formatLog(f, v...)
+	str, err := json.Marshal(parsh(msg))
+	if err == nil {
+		logs.Warning(string(str))
+	}
+}
+
+func Alert(f interface{}, v ...interface{}) {
+	msg := formatLog(f, v...)
+	str, err := json.Marshal(parsh(msg))
+	if err == nil {
+		logs.Alert(string(str))
+	}
+}
+
+func Emergency(f interface{}, v ...interface{}) {
+	msg := formatLog(f, v...)
+	str, err := json.Marshal(parsh(msg))
+	if err == nil {
+		logs.Emergency(string(str))
+	}
+}
+
+func Critical(f interface{}, v ...interface{}) {
+	msg := formatLog(f, v...)
+	str, err := json.Marshal(parsh(msg))
+	if err == nil {
+		logs.Critical(string(str))
+	}
+}
+
+func Notice(f interface{}, v ...interface{}) {
+	msg := formatLog(f, v...)
+	str, err := json.Marshal(parsh(msg))
+	if err == nil {
+		logs.Notice(string(str))
+	}
+}
+
+func Error(f interface{}, v ...interface{}) {
+	msg := formatLog(f, v...)
+	str, err := json.Marshal(parsh(msg))
+	if err == nil {
+		logs.Error(string(str))
+	}
 }
 `
 
@@ -671,6 +837,11 @@ func createAPI(cmd *commands.Command, args []string) int {
 	utils.WriteToFile(path.Join(appPath, "tests/conf", "app.conf"),
 		strings.Replace(apiconf, "{{.Appname}}", path.Base(args[0]), -1))
 
+	os.MkdirAll(path.Join(appPath, "mlogs"), 0755)
+	fmt.Fprintf(output, "\t%s%screate%s\t %s%s\n", "\x1b[32m", "\x1b[1m", "\x1b[21m", path.Join(appPath, "mlogs", "mlogs.go"), "\x1b[0m")
+	utils.WriteToFile(path.Join(appPath, "mlogs", "mlogs.go"),
+		strings.Replace(apimlogs, "{{.Appname}}", path.Base(args[0]), -1))
+
 	os.Mkdir(path.Join(appPath,"dao"), 0755)
 	fmt.Fprintf(output, "\t%s%screate%s\t %s%s\n", "\x1b[32m", "\x1b[1m", "\x1b[21m", path.Join(appPath, "dao"), "\x1b[0m")
 	os.Mkdir(path.Join(appPath,"service"), 0755)
@@ -718,6 +889,10 @@ func createAPI(cmd *commands.Command, args []string) int {
 		fmt.Fprintf(output, "\t%s%screate%s\t %s%s\n", "\x1b[32m", "\x1b[1m", "\x1b[21m", path.Join(appPath, "controllers", "common_controller.go"), "\x1b[0m")
 		utils.WriteToFile(path.Join(appPath, "controllers", "common_controller.go"),
 			strings.Replace(apiControllerCommon, "{{.Appname}}", packPath, -1))
+
+		fmt.Fprintf(output, "\t%s%screate%s\t %s%s\n", "\x1b[32m", "\x1b[1m", "\x1b[21m", path.Join(appPath, "controllers", "check_controller.go"), "\x1b[0m")
+		utils.WriteToFile(path.Join(appPath, "controllers", "check_controller.go"),
+			strings.Replace(apiControllerCheck, "{{.Appname}}", packPath, -1))
 
 		fmt.Fprintf(output, "\t%s%screate%s\t %s%s\n", "\x1b[32m", "\x1b[1m", "\x1b[21m", path.Join(appPath, "tests", "default_test.go"), "\x1b[0m")
 		utils.WriteToFile(path.Join(appPath, "tests", "default_test.go"),
