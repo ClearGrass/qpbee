@@ -90,21 +90,22 @@ import (
 	"github.com/astaxie/beego"
     //"github.com/philchia/agollo"
 	//"github.com/ClearGrass/code/util"
+    "github.com/astaxie/beego/logs"
 
 )
 func init() {
+	
+	//log
+	//beego.BeeLogger.DelLogger("console")
+	logs.SetLogger(logs.AdapterFile,"{\"filename\":\"/opt/logs/{{.Path}}/server.log\",\"level\":7,\"daily\":true,\"maxdays\":30}")
+	logs.EnableFuncCallDepth(true)
+	logs.SetLogFuncCallDepth(4)
+	logs.Async()
     
     //agollo.StartWithConfFile(util.GetApolloConfigFile(beego.AppConfig.String("appname")))
 
 	//init constants
 	utils.InitConstants()
-
-    //log
-	logFile := "/opt/logs/{{.Appname}}/server.log"
-	logs.SetLogger(logs.AdapterMultiFile, fmt.Sprintf("{\"filename\":\"%s\", \"lever\": 7, \"separate\":[\"critical\", \"error\", \"warning\", \"info\"]}", logFile))
-	logs.EnableFuncCallDepth(true)
-	logs.SetLogFuncCallDepth(4)
-	logs.Async()
 
 }
 
@@ -154,9 +155,24 @@ import (
 	"{{.Appname}}/controllers"
 
 	"github.com/astaxie/beego"
+	"github.com/astaxie/beego/context/param"
+
 )
 
 func init() {
+	beego.GlobalControllerRouter["{{.Appname}}/controllers:CheckController"] = append(beego.GlobalControllerRouter["{{.Appname}}/controllers:CheckController"],
+		beego.ControllerComments{
+			Method:           "Get",
+			Router:           "/",
+			AllowHTTPMethods: []string{"get"},
+			MethodParams:     param.Make(),
+			Params:           nil})
+	checkNs := beego.NewNamespace("/check",
+		beego.NSInclude(
+			&controllers.CheckController{},
+		))
+	beego.AddNamespace(checkNs)
+
 	ns := beego.NewNamespace("/v1",
 		beego.NSNamespace("/object",
 			beego.NSInclude(
@@ -319,7 +335,7 @@ func DeleteUser(uid string) {
 var apiControllers = `package controllers
 
 import (
-	"test/models"
+	"{{.Appname}}/models"
 	"encoding/json"
 )
 
@@ -339,7 +355,7 @@ func (o *ObjectController) Post() {
 	json.Unmarshal(o.Ctx.Input.RequestBody, &ob)
 	objectid := models.AddOne(ob)
 	data := map[string]string{"ObjectId": objectid}
-	o.resSucessJson(data)
+	o.resSuccessJson(data)
 }
 
 // @Title Get
@@ -355,7 +371,7 @@ func (o *ObjectController) Get() {
 		if err != nil {
 			o.resServerErrorJson()
 		} else {
-			o.resSucessJson(ob)
+			o.resSuccessJson(ob)
 		}
 	}
 }
@@ -367,7 +383,7 @@ func (o *ObjectController) Get() {
 // @router / [get]
 func (o *ObjectController) GetAll() {
 	obs := models.GetAll()
-	o.resSucessJson(obs)
+	o.resSuccessJson(obs)
 }
 
 // @Title Update
@@ -386,7 +402,7 @@ func (o *ObjectController) Put() {
 	if err != nil {
 		o.resServerErrorJson()
 	} else {
-		o.resSucessJson("update success!")
+		o.resSuccessJson("update success!")
 	}
 }
 
@@ -399,14 +415,14 @@ func (o *ObjectController) Put() {
 func (o *ObjectController) Delete() {
 	objectId := o.Ctx.Input.Param(":objectId")
 	models.Delete(objectId)
-	o.resSucessJson("delete success!")
+	o.resSuccessJson("delete success!")
 }
 
 `
 var apiControllers2 = `package controllers
 
 import (
-	"test/models"
+	"{{.Appname}}/models"
 	"encoding/json"
 
 )
@@ -427,7 +443,7 @@ func (u *UserController) Post() {
 	json.Unmarshal(u.Ctx.Input.RequestBody, &user)
 	uid := models.AddUser(user)
 	result := map[string]string{"uid": uid}
-	u.resSucessJson(result)
+	u.resSuccessJson(result)
 }
 
 // @Title GetAll
@@ -436,7 +452,7 @@ func (u *UserController) Post() {
 // @router / [get]
 func (u *UserController) GetAll() {
 	users := models.GetAllUsers()
-	u.resSucessJson(users)
+	u.resSuccessJson(users)
 }
 
 // @Title Get
@@ -452,7 +468,7 @@ func (u *UserController) Get() {
 		if err != nil {
 			u.resServerErrorJson()
 		} else {
-			u.resSucessJson(user)
+			u.resSuccessJson(user)
 		}
 	}
 }
@@ -474,7 +490,7 @@ func (u *UserController) Put() {
 		if err != nil {
 			u.resServerErrorJson()
 		} else {
-			u.resSucessJson(uu)
+			u.resSuccessJson(uu)
 		}
 	}
 }
@@ -488,7 +504,7 @@ func (u *UserController) Put() {
 func (u *UserController) Delete() {
 	uid := u.GetString(":uid")
 	models.DeleteUser(uid)
-	u.resSucessJson("delete success!")
+	u.resSuccessJson("delete success!")
 }
 
 // @Title Login
@@ -502,9 +518,9 @@ func (u *UserController) Login() {
 	username := u.GetString("username")
 	password := u.GetString("password")
 	if models.Login(username, password) {
-		u.resSucessJson("login success")
+		u.resSuccessJson("login success")
 	} else {
-		u.resSucessJson("user not exist")
+		u.resSuccessJson("user not exist")
 	}
 }
 
@@ -513,7 +529,7 @@ func (u *UserController) Login() {
 // @Success 200 {string} logout success
 // @router /logout [get]
 func (u *UserController) Logout() {
-	u.resSucessJson("logout success")
+	u.resSuccessJson("logout success")
 }
 
 `
@@ -521,8 +537,8 @@ func (u *UserController) Logout() {
 var apiControllerCommon = `package controllers
 
 import (
-	"github.com/ClearGrass/code/resultcode"
-	"github.com/ClearGrass/code/util"
+	"github.com/ClearGrass/api-common-code/resultcode"
+	"github.com/ClearGrass/api-common-code/util"
 	"github.com/astaxie/beego"
 )
 
@@ -914,7 +930,7 @@ func createAPI(cmd *commands.Command, args []string) int {
 
 		fmt.Fprintf(output, "\t%s%screate%s\t %s%s\n", "\x1b[32m", "\x1b[1m", "\x1b[21m", path.Join(appPath, "main.go"), "\x1b[0m")
 		utils.WriteToFile(path.Join(appPath, "main.go"),
-			strings.Replace(apiMaingo, "{{.Appname}}", packPath, -1))
+			strings.Replace(strings.Replace(apiMaingo, "{{.Appname}}", packPath, -1), "{{.Path}}", path.Base(packPath), -1))
 
 
 	}
