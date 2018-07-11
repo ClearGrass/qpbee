@@ -88,19 +88,16 @@ import (
 	_ "{{.Appname}}/routers"
     "{{.Appname}}/utils"
 	"github.com/astaxie/beego"
+	"github.com/ClearGrass/api-common-code/mlogs"
+	"github.com/astaxie/beego/logs"
     //"github.com/philchia/agollo"
-	//"github.com/ClearGrass/code/util"
-    "github.com/astaxie/beego/logs"
+	//"github.com/ClearGrass/api-common-code/util"
 
 )
 func init() {
 	
 	//log
-	//beego.BeeLogger.DelLogger("console")
-	logs.SetLogger(logs.AdapterFile,"{\"filename\":\"/opt/logs/{{.Path}}/server.log\",\"level\":7,\"daily\":true,\"maxdays\":30}")
-	logs.EnableFuncCallDepth(true)
-	logs.SetLogFuncCallDepth(4)
-	logs.Async()
+	mlogs.SetLogger(logs.AdapterMultiFile,"{\"filename\":\"/opt/logs/test/server.log\",\"level\":6,\"daily\":true,\"maxdays\":30, \"separate\":[\"emergency\",\"alert\",\"critical\",\"error\",\"warning\",\"notice\",\"info\"]}")
     
     //agollo.StartWithConfFile(util.GetApolloConfigFile(beego.AppConfig.String("appname")))
 
@@ -113,6 +110,7 @@ func main() {
 	if beego.BConfig.RunMode == "dev" {
 		beego.BConfig.WebConfig.DirectoryIndex = true
 		beego.BConfig.WebConfig.StaticDir["/swagger"] = "swagger"
+		mlogs.SetLogger(logs.AdapterConsole,"{\"level\":7}")
 	}
 	beego.Run()
 }
@@ -589,163 +587,6 @@ func (cc *CheckController)Get() {
 }
 `
 
-var apimlogs = `package mlogs
-
-import (
-	"github.com/astaxie/beego/logs"
-	"encoding/json"
-	"strings"
-	"fmt"
-)
-
-func formatLog(f interface{}, v ...interface{}) string {
-	var msg string
-	switch f.(type) {
-	case string:
-		msg = f.(string)
-		if len(v) == 0 {
-			return msg
-		}
-		if strings.Contains(msg, "%") && !strings.Contains(msg, "%%") {
-			//format string
-		} else {
-			//do not contain format char
-			msg += strings.Repeat(" %v", len(v))
-		}
-	default:
-		msg = fmt.Sprint(f)
-		if len(v) == 0 {
-			return msg
-		}
-		msg += strings.Repeat(" %v", len(v))
-	}
-	return fmt.Sprintf(msg, v...)
-}
-
-func parsh(msg string) map[string]string {
-	result := make(map[string]string)
-	index := strings.Index(msg, " ")
-	if index == -1 {
-		logs.Notice(msg)
-		return nil
-	}
-	result["method"] = msg[0:index]
-
-	if index+1 > len(msg) {
-		logs.Notice(msg)
-		return nil
-	}
-	msg = msg[index+1:]
-	index = strings.Index(msg, ",[")
-	if index == -1 {
-		result["desc"] = msg
-		return result
-	}
-	result["desc"] = msg[0:index]
-
-	if index+2 > len(msg) {
-		logs.Notice(msg)
-		return nil
-	}
-	msg = msg[index+1:]
-	for {
-		if strings.Index(msg, "[") != 0 {
-			logs.Notice(msg)
-			return nil
-		}
-		msg = msg[1:]
-		index = strings.Index(msg, "|")
-		if index == -1 {
-			logs.Notice(msg)
-			return nil
-		}
-		tag := msg[0:index]
-		if index+1 > len(msg) {
-			logs.Notice(msg)
-			return nil
-		}
-		msg = msg[index+1:]
-		index = strings.Index(msg, "]")
-		if index == -1 {
-			logs.Notice(msg)
-			return nil
-		}
-		val := msg[0:index]
-		result[tag] = val
-		if index+1 >= len(msg) {
-			break
-		}
-		msg = msg[index+1:]
-	}
-
-	return result
-}
-
-func Debug(f interface{}, v ...interface{}) {
-	msg := formatLog(f, v...)
-	str, err := json.Marshal(parsh(msg))
-	if err == nil {
-		logs.Debug(string(str))
-	}
-}
-
-func Info(f interface{}, v ...interface{}) {
-	msg := formatLog(f, v...)
-	str, err := json.Marshal(parsh(msg))
-	if err == nil {
-		logs.Info(string(str))
-	}
-}
-
-func Warning(f interface{}, v ...interface{}) {
-	msg := formatLog(f, v...)
-	str, err := json.Marshal(parsh(msg))
-	if err == nil {
-		logs.Warning(string(str))
-	}
-}
-
-func Alert(f interface{}, v ...interface{}) {
-	msg := formatLog(f, v...)
-	str, err := json.Marshal(parsh(msg))
-	if err == nil {
-		logs.Alert(string(str))
-	}
-}
-
-func Emergency(f interface{}, v ...interface{}) {
-	msg := formatLog(f, v...)
-	str, err := json.Marshal(parsh(msg))
-	if err == nil {
-		logs.Emergency(string(str))
-	}
-}
-
-func Critical(f interface{}, v ...interface{}) {
-	msg := formatLog(f, v...)
-	str, err := json.Marshal(parsh(msg))
-	if err == nil {
-		logs.Critical(string(str))
-	}
-}
-
-func Notice(f interface{}, v ...interface{}) {
-	msg := formatLog(f, v...)
-	str, err := json.Marshal(parsh(msg))
-	if err == nil {
-		logs.Notice(string(str))
-	}
-}
-
-func Error(f interface{}, v ...interface{}) {
-	msg := formatLog(f, v...)
-	str, err := json.Marshal(parsh(msg))
-	if err == nil {
-		logs.Error(string(str))
-	}
-}
-`
-
 var apiTests = `package test
 
 import (
@@ -852,11 +693,6 @@ func createAPI(cmd *commands.Command, args []string) int {
 	fmt.Fprintf(output, "\t%s%screate%s\t %s%s\n", "\x1b[32m", "\x1b[1m", "\x1b[21m", path.Join(appPath, "tests/conf", "app.conf"), "\x1b[0m")
 	utils.WriteToFile(path.Join(appPath, "tests/conf", "app.conf"),
 		strings.Replace(apiconf, "{{.Appname}}", path.Base(args[0]), -1))
-
-	os.MkdirAll(path.Join(appPath, "mlogs"), 0755)
-	fmt.Fprintf(output, "\t%s%screate%s\t %s%s\n", "\x1b[32m", "\x1b[1m", "\x1b[21m", path.Join(appPath, "mlogs", "mlogs.go"), "\x1b[0m")
-	utils.WriteToFile(path.Join(appPath, "mlogs", "mlogs.go"),
-		strings.Replace(apimlogs, "{{.Appname}}", path.Base(args[0]), -1))
 
 	os.Mkdir(path.Join(appPath,"dao"), 0755)
 	fmt.Fprintf(output, "\t%s%screate%s\t %s%s\n", "\x1b[32m", "\x1b[1m", "\x1b[21m", path.Join(appPath, "dao"), "\x1b[0m")
