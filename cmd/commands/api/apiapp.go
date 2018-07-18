@@ -67,21 +67,49 @@ var CmdApiapp = &commands.Command{
 	PreRun: func(cmd *commands.Command, args []string) { version.ShowShortVersionBanner() },
 	Run:    createAPI,
 }
-var apiconf = `appname = {{.Appname}}
+var apiProdConf = `appname = {{.Appname}}
+httpport = 8080
+runmode = prod
+autorender = false
+copyrequestbody = true
+EnableDocs = true
+`
+var apiTestConf = `appname = {{.Appname}}
+httpport = 8080
+runmode = test
+autorender = false
+copyrequestbody = true
+EnableDocs = true
+`
+var apiDevConf = `appname = {{.Appname}}
 httpport = 8080
 runmode = dev
 autorender = false
 copyrequestbody = true
 EnableDocs = true
 `
-var apiapolloconf = `{
+var apiApolloProdConf = `{
     "appId":"{{.Appname}}",
-    "cluster":"DEV",
+    "cluster":"default",
     "namespaceNames":["application"],
-    "ip":"54.222.185.168:8081"
+    "ip":"10.151.25.170:8081"
 }
-
 `
+var apiApolloTestConf = `{
+    "appId":"{{.Appname}}",
+    "cluster":"default",
+    "namespaceNames":["application"],
+    "ip":"config.dev.cleargrass002.com:8081"
+}
+`
+var apiApolloDevConf = `{
+    "appId":"{{.Appname}}",
+    "cluster":"default",
+    "namespaceNames":["application"],
+    "ip":"config.dev.cleargrass002.com:8081"
+}
+`
+
 var apiMaingo = `package main
 
 import (
@@ -591,39 +619,26 @@ func (cc *CheckController)Get() {
 var apiTests = `package test
 
 import (
-	"net/http"
-	"net/http/httptest"
-	"testing"
 	"runtime"
 	"path/filepath"
 	_ "{{.Appname}}/routers"
 
 	"github.com/astaxie/beego"
-	. "github.com/smartystreets/goconvey/convey"
+    "{{.Appname}}/utils"
+	//"github.com/philchia/agollo"
+	"github.com/ClearGrass/api-common-code/mlogs"
+	"github.com/astaxie/beego/logs"
 )
 
 func init() {
 	_, file, _, _ := runtime.Caller(1)
 	apppath, _ := filepath.Abs(filepath.Dir(filepath.Join(file, ".." + string(filepath.Separator))))
+	
+  //agollo.StartWithConfFile("conf/apollo.dev.properties")
+	utils.InitConstants()
+	mlogs.SetLogger(logs.AdapterMultiFile, "{\"filename\":\"/opt/logs/{{.Appname}}/server.log\",\"level\":6,\"daily\":true,\"maxdays\":30, \"separate\":[\"emergency\",\"alert\",\"critical\",\"error\",\"warning\",\"notice\",\"info\"]}")
+	mlogs.SetLogger(logs.AdapterConsole, "{\"level\":7}")
 	beego.TestBeegoInit(apppath)
-}
-
-// TestGet is a sample to run an endpoint test
-func TestGet(t *testing.T) {
-	r, _ := http.NewRequest("GET", "/v1/object", nil)
-	w := httptest.NewRecorder()
-	beego.BeeApp.Handlers.ServeHTTP(w, r)
-
-	beego.Trace("testing", "TestGet", "Code[%d]\n%s", w.Code, w.Body.String())
-
-	Convey("Subject: Test Station Endpoint\n", t, func() {
-	        Convey("Status Code Should Be 200", func() {
-	                So(w.Code, ShouldEqual, 200)
-	        })
-	        Convey("The Result Should Not Be Empty", func() {
-	                So(w.Body.Len(), ShouldBeGreaterThan, 0)
-	        })
-	})
 }
 
 `
@@ -664,7 +679,6 @@ func LoadAppConfig()  {
 }
 `
 
-
 func init() {
 	CmdApiapp.Flag.Var(&generate.Tables, "tables", "List of table names separated by a comma.")
 	CmdApiapp.Flag.Var(&generate.SQLDriver, "driver", "Database driver. Either mysql, postgres or sqlite.")
@@ -701,12 +715,27 @@ func createAPI(cmd *commands.Command, args []string) int {
 
 	os.Mkdir(path.Join(appPath, "conf"), 0755)
 	fmt.Fprintf(output, "\t%s%screate%s\t %s%s\n", "\x1b[32m", "\x1b[1m", "\x1b[21m", path.Join(appPath, "conf"), "\x1b[0m")
-	fmt.Fprintf(output, "\t%s%screate%s\t %s%s\n", "\x1b[32m", "\x1b[1m", "\x1b[21m", path.Join(appPath, "conf", "app.conf"), "\x1b[0m")
-	utils.WriteToFile(path.Join(appPath, "conf", "app.conf"),
-		strings.Replace(apiconf, "{{.Appname}}", path.Base(args[0]), -1))
-	fmt.Fprintf(output, "\t%s%screate%s\t %s%s\n", "\x1b[32m", "\x1b[1m", "\x1b[21m", path.Join(appPath, "conf", "apollo.properties"), "\x1b[0m")
-	utils.WriteToFile(path.Join(appPath, "conf", "apollo.properties"),
-		strings.Replace(apiapolloconf, "{{.Appname}}", path.Base(args[0]), -1))
+	fmt.Fprintf(output, "\t%s%screate%s\t %s%s\n", "\x1b[32m", "\x1b[1m", "\x1b[21m", path.Join(appPath, "conf", "app.prod.conf"), "\x1b[0m")
+	utils.WriteToFile(path.Join(appPath, "conf", "app.prod.conf"),
+		strings.Replace(apiProdConf, "{{.Appname}}", path.Base(args[0]), -1))
+	fmt.Fprintf(output, "\t%s%screate%s\t %s%s\n", "\x1b[32m", "\x1b[1m", "\x1b[21m", path.Join(appPath, "conf", "app.test.conf"), "\x1b[0m")
+	utils.WriteToFile(path.Join(appPath, "conf", "app.test.conf"),
+		strings.Replace(apiTestConf, "{{.Appname}}", path.Base(args[0]), -1))
+	fmt.Fprintf(output, "\t%s%screate%s\t %s%s\n", "\x1b[32m", "\x1b[1m", "\x1b[21m", path.Join(appPath, "conf", "app.dev.conf"), "\x1b[0m")
+	utils.WriteToFile(path.Join(appPath, "conf", "app.dev.conf"),
+		strings.Replace(apiDevConf, "{{.Appname}}", path.Base(args[0]), -1))
+
+	fmt.Fprintf(output, "\t%s%screate%s\t %s%s\n", "\x1b[32m", "\x1b[1m", "\x1b[21m", path.Join(appPath, "conf", "apollo.prod.properties"), "\x1b[0m")
+	utils.WriteToFile(path.Join(appPath, "conf", "apollo.prod.properties"),
+		strings.Replace(apiApolloProdConf, "{{.Appname}}", path.Base(args[0]), -1))
+
+	fmt.Fprintf(output, "\t%s%screate%s\t %s%s\n", "\x1b[32m", "\x1b[1m", "\x1b[21m", path.Join(appPath, "conf", "apollo.test.properties"), "\x1b[0m")
+	utils.WriteToFile(path.Join(appPath, "conf", "apollo.test.properties"),
+		strings.Replace(apiApolloTestConf, "{{.Appname}}", path.Base(args[0]), -1))
+
+	fmt.Fprintf(output, "\t%s%screate%s\t %s%s\n", "\x1b[32m", "\x1b[1m", "\x1b[21m", path.Join(appPath, "conf", "apollo.dev.properties"), "\x1b[0m")
+	utils.WriteToFile(path.Join(appPath, "conf", "apollo.dev.properties"),
+		strings.Replace(apiApolloDevConf, "{{.Appname}}", path.Base(args[0]), -1))
 
 	os.Mkdir(path.Join(appPath, "controllers"), 0755)
 	fmt.Fprintf(output, "\t%s%screate%s\t %s%s\n", "\x1b[32m", "\x1b[1m", "\x1b[21m", path.Join(appPath, "controllers"), "\x1b[0m")
@@ -715,15 +744,19 @@ func createAPI(cmd *commands.Command, args []string) int {
 	fmt.Fprintf(output, "\t%s%screate%s\t %s%s\n", "\x1b[32m", "\x1b[1m", "\x1b[21m", path.Join(appPath, "tests/conf"), "\x1b[0m")
 	fmt.Fprintf(output, "\t%s%screate%s\t %s%s\n", "\x1b[32m", "\x1b[1m", "\x1b[21m", path.Join(appPath, "tests/conf", "app.conf"), "\x1b[0m")
 	utils.WriteToFile(path.Join(appPath, "tests/conf", "app.conf"),
-		strings.Replace(apiconf, "{{.Appname}}", path.Base(args[0]), -1))
+		strings.Replace(apiDevConf, "{{.Appname}}", path.Base(args[0]), -1))
 
-	os.Mkdir(path.Join(appPath,"dao"), 0755)
+	fmt.Fprintf(output, "\t%s%screate%s\t %s%s\n", "\x1b[32m", "\x1b[1m", "\x1b[21m", path.Join(appPath, "tests/conf", "apollo.dev.properties"), "\x1b[0m")
+	utils.WriteToFile(path.Join(appPath, "tests/conf", "apollo.dev.properties"),
+		strings.Replace(apiApolloDevConf, "{{.Appname}}", path.Base(args[0]), -1))
+
+	os.Mkdir(path.Join(appPath, "dao"), 0755)
 	fmt.Fprintf(output, "\t%s%screate%s\t %s%s\n", "\x1b[32m", "\x1b[1m", "\x1b[21m", path.Join(appPath, "dao"), "\x1b[0m")
-	os.Mkdir(path.Join(appPath,"service"), 0755)
+	os.Mkdir(path.Join(appPath, "service"), 0755)
 	fmt.Fprintf(output, "\t%s%screate%s\t %s%s\n", "\x1b[32m", "\x1b[1m", "\x1b[21m", path.Join(appPath, "service"), "\x1b[0m")
-	os.Mkdir(path.Join(appPath,"filter"), 0755)
+	os.Mkdir(path.Join(appPath, "filter"), 0755)
 	fmt.Fprintf(output, "\t%s%screate%s\t %s%s\n", "\x1b[32m", "\x1b[1m", "\x1b[21m", path.Join(appPath, "filter"), "\x1b[0m")
-	os.Mkdir(path.Join(appPath,"utils"), 0755)
+	os.Mkdir(path.Join(appPath, "utils"), 0755)
 	fmt.Fprintf(output, "\t%s%screate%s\t %s%s\n", "\x1b[32m", "\x1b[1m", "\x1b[21m", path.Join(appPath, "utils"), "\x1b[0m")
 
 	if generate.SQLConn != "" {
@@ -788,13 +821,12 @@ func createAPI(cmd *commands.Command, args []string) int {
 		utils.WriteToFile(path.Join(appPath, "models", "user.go"), APIModels2)
 
 		fmt.Fprintf(output, "\t%s%screate%s\t %s%s\n", "\x1b[32m", "\x1b[1m", "\x1b[21m", path.Join(appPath, "utils", "constants.go"), "\x1b[0m")
-		utils.WriteToFile(path.Join(appPath, "utils" ,"constants.go"),
+		utils.WriteToFile(path.Join(appPath, "utils", "constants.go"),
 			strings.Replace(apiConstants, "{{.Appname}}", packPath, -1))
 
 		fmt.Fprintf(output, "\t%s%screate%s\t %s%s\n", "\x1b[32m", "\x1b[1m", "\x1b[21m", path.Join(appPath, "main.go"), "\x1b[0m")
 		utils.WriteToFile(path.Join(appPath, "main.go"),
 			strings.Replace(strings.Replace(apiMaingo, "{{.Appname}}", packPath, -1), "{{.Path}}", path.Base(packPath), -1))
-
 
 	}
 	beeLogger.Log.Success("New API successfully created!")
