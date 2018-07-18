@@ -95,11 +95,12 @@ import (
 
 )
 func init() {
-	
+    utils.LoadAppConfig()
+
 	//log
-	mlogs.SetLogger(logs.AdapterMultiFile,"{\"filename\":\"/opt/logs/test/server.log\",\"level\":6,\"daily\":true,\"maxdays\":30, \"separate\":[\"emergency\",\"alert\",\"critical\",\"error\",\"warning\",\"notice\",\"info\"]}")
+	mlogs.SetLogger(logs.AdapterMultiFile,"{\"filename\":\"/opt/logs/{{.Appname}}/server.log\",\"level\":6,\"daily\":true,\"maxdays\":30, \"separate\":[\"emergency\",\"alert\",\"critical\",\"error\",\"warning\",\"notice\",\"info\"]}")
     
-    //agollo.StartWithConfFile(util.GetApolloConfigFile(beego.AppConfig.String("appname")))
+	//agollo.StartWithConfFile(util.GetApolloConfig(beego.AppConfig.String("env")))
 
 	//init constants
 	utils.InitConstants()
@@ -640,6 +641,28 @@ func InitConstants() {
 }
 
 `
+var utilsConfigUtil = `package utils
+
+import (
+	"os"
+	"github.com/astaxie/beego"
+	"github.com/ClearGrass/api-common-code/mlogs"
+)
+
+func LoadAppConfig()  {
+	env := os.Getenv("ENV_CLUSTER")
+	if env == "prod" {
+		mlogs.Info("LoadAppConfig project env:%", env)
+		beego.LoadAppConfig("ini", "conf/app.prod.conf")
+	} else if env == "test" {
+		mlogs.Info("LoadAppConfig project env:%", env)
+		beego.LoadAppConfig("ini", "conf/app.test.conf")
+	} else {
+		mlogs.Info("LoadAppConfig project env:%", env)
+		beego.LoadAppConfig("ini", "conf/app.dev.conf")
+	}
+}
+`
 
 
 func init() {
@@ -741,6 +764,10 @@ func createAPI(cmd *commands.Command, args []string) int {
 		fmt.Fprintf(output, "\t%s%screate%s\t %s%s\n", "\x1b[32m", "\x1b[1m", "\x1b[21m", path.Join(appPath, "controllers", "common_controller.go"), "\x1b[0m")
 		utils.WriteToFile(path.Join(appPath, "controllers", "common_controller.go"),
 			strings.Replace(apiControllerCommon, "{{.Appname}}", packPath, -1))
+
+		fmt.Fprintf(output, "\t%s%screate%s\t %s%s\n", "\x1b[32m", "\x1b[1m", "\x1b[21m", path.Join(appPath, "utils", "config_util.go"), "\x1b[0m")
+		utils.WriteToFile(path.Join(appPath, "utils", "config_util.go"),
+			strings.Replace(utilsConfigUtil, "{{.Appname}}", packPath, -1))
 
 		fmt.Fprintf(output, "\t%s%screate%s\t %s%s\n", "\x1b[32m", "\x1b[1m", "\x1b[21m", path.Join(appPath, "controllers", "check_controller.go"), "\x1b[0m")
 		utils.WriteToFile(path.Join(appPath, "controllers", "check_controller.go"),
